@@ -1,0 +1,163 @@
+"use client";
+
+import { jsPDF } from "jspdf";
+import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
+
+import { SectionCard } from "@/components/dashboard/section-card";
+import { useActiveSession } from "@/components/layout/active-session-provider";
+import { readJsonOrThrow } from "@/lib/client-fetch";
+import { formatPercentage } from "@/lib/utils";
+import type { DashboardPayload, StudentRecord } from "@/types";
+
+type ReportPayload = {
+  dashboard: DashboardPayload;
+  students: StudentRecord[];
+};
+
+export function ReportCenter() {
+  const { activeCollegeId, activeYearId } = useActiveSession();
+  const [payload, setPayload] = useState<ReportPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeCollegeId || !activeYearId) return;
+    const load = async () => {
+      try {
+        setError(null);
+        const response = await fetch(`/api/reports?collegeId=${activeCollegeId}&academicYearId=${activeYearId}`, {
+          cache: "no-store"
+        });
+        setPayload(await readJsonOrThrow<ReportPayload>(response));
+      } catch (fetchError) {
+        setPayload(null);
+        setError(fetchError instanceof Error ? fetchError.message : "Unable to load reports.");
+      }
+    };
+
+    void load();
+  }, [activeCollegeId, activeYearId]);
+
+  const exportExcel = () => {
+    if (!payload) return;
+    const rows = payload.students.map((student) => ({
+      Name: student.name,
+      RollNumber: student.rollNumber,
+      Stream: student.stream ?? "",
+      Grade: student.result?.grade ?? "",
+      Status: student.result?.status ?? "",
+      Percentage: student.result?.percentage ?? 0,
+      Total: student.result?.total ?? 0
+    }));
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, sheet, "Results");
+    XLSX.writeFile(workbook, "college-year-summary.xlsx");
+  };
+
+  const exportCsv = () => {
+    if (!payload) return;
+    const rows = payload.students.map((student) => ({
+      Name: student.name,
+      RollNumber: student.rollNumber,
+      Grade: student.result?.grade ?? "",
+      Status: student.result?.status ?? "",
+      Percentage: student.result?.percentage ?? 0
+    }));
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "college-year-summary.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    if (!payload) return;
+    const pdf = new jsPDF();
+    pdf.setFontSize(18);
+    pdf.text("UP Board College-Year Summary Report", 14, 18);
+    pdf.setFontSize(11);
+    pdf.text(`Students: ${payload.dashboard.summary.totalStudents}`, 14, 30);
+    pdf.text(`Pass Rate: ${formatPercentage(payload.dashboard.summary.passPercentage)}`, 14, 38);
+    pdf.text(`Average Percentage: ${formatPercentage(payload.dashboard.summary.averagePercentage)}`, 14, 46);
+    pdf.text(`Topper: ${payload.dashboard.summary.topper?.name ?? "N/A"}`, 14, 54);
+    let y = 68;
+    payload.dashboard.top10Students.slice(0, 8).forEach((student) => {
+      pdf.text(`${student.rank}. ${student.name} - ${formatPercentage(student.percentage)}`, 14, y);
+      y += 8;
+    });
+    pdf.save("college-year-summary.pdf");
+  };
+
+  if (!activeCollegeId) {
+    return (
+      <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">
+        Create a college first from the Settings page before opening reports.
+      </div>
+    );
+  }
+
+  if (!activeYearId) {
+    return (
+      <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">
+        Add an academic year for the selected college from the Settings page before opening reports.
+      </div>
+    );
+  }
+
+  if (!payload) {
+    return <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">{error ?? "Loading reports..."}</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-4">
+        <button onClick={exportExcel} className="rounded-[1.75rem] bg-ink px-4 py-4 text-sm font-semibold text-white">
+          Export Excel
+        </button>
+        <button onClick={exportCsv} className="rounded-[1.75rem] bg-pine px-4 py-4 text-sm font-semibold text-white">
+          Export CSV
+        </button>
+        <button onClick={exportPdf} className="rounded-[1.75rem] bg-ember px-4 py-4 text-sm font-semibold text-white">
+          Download PDF
+        </button>
+        <button onClick={() => window.print()} className="rounded-[1.75rem] bg-white px-4 py-4 text-sm font-semibold text-ink shadow-soft">
+          Printable Dashboard
+        </button>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <SectionCard title="College-Year Summary" subtitle="Snapshot of the selected context">
+          <div className="space-y-3 text-sm text-slate-700">
+            <p>Total students: {payload.dashboard.summary.totalStudents}</p>
+            <p>Pass rate: {formatPercentage(payload.dashboard.summary.passPercentage)}</p>
+            <p>Average percentage: {formatPercentage(payload.dashboard.summary.averagePercentage)}</p>
+            <p>Topper: {payload.dashboard.summary.topper?.name ?? "N/A"}</p>
+            <p>Previous year average: {formatPercentage(payload.dashboard.previousYearAverage)}</p>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Student Report Cards" subtitle="Use the exported summary or fetch individual cards from the API">
+          <div className="space-y-3">
+            {payload.students.slice(0, 8).map((student) => (
+              <div key={student.id} className="rounded-2xl border border-slate-200 p-4">
+                <p className="font-semibold text-ink">{student.name}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {student.rollNumber} | {student.result?.grade ?? "N/A"} | {student.result?.status ?? "N/A"}
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Subjects:{" "}
+                  {student.result?.subjectMarks.map((item) => `${item.subject.name} ${item.marks}`).join(", ") ?? "N/A"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ResultStatus {
+  PASS
+  FAIL
+}
+
+model College {
+  id            String         @id @default(cuid())
+  name          String
+  location      String
+  createdAt     DateTime       @default(now())
+  academicYears AcademicYear[]
+  students      Student[]
+  importBatches ImportBatch[]
+
+  @@unique([name, location])
+}
+
+model AcademicYear {
+  id            String         @id @default(cuid())
+  year          Int
+  collegeId     String
+  college       College        @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  students      Student[]
+  importBatches ImportBatch[]
+  createdAt     DateTime       @default(now())
+
+  @@unique([year, collegeId])
+}
+
+model Student {
+  id             String        @id @default(cuid())
+  name           String
+  rollNumber     String
+  stream         String?
+  districtCode   String?
+  schoolCode     String?
+  importBatchId  String?
+  collegeId      String
+  academicYearId String
+  createdAt      DateTime      @default(now())
+  importBatch    ImportBatch?   @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  college        College       @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  result         Result?
+
+  @@unique([rollNumber, academicYearId])
+  @@index([collegeId, academicYearId])
+}
+
+model Subject {
+  id           String          @id @default(cuid())
+  name         String          @unique
+  aliases      SubjectAlias[]
+  subjectMarks SubjectMarks[]
+}
+
+model SubjectAlias {
+  id        String  @id @default(cuid())
+  alias     String  @unique
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+}
+
+model Result {
+  id           String         @id @default(cuid())
+  studentId    String         @unique
+  total        Int
+  percentage   Float
+  grade        String
+  status       ResultStatus
+  rank         Int?
+  strongSubject String?
+  weakSubject   String?
+  createdAt    DateTime       @default(now())
+  student      Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectMarks SubjectMarks[]
+}
+
+model SubjectMarks {
+  id        String  @id @default(cuid())
+  resultId   String
+  subjectId  String
+  marks     Float
+  result    Result  @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@unique([resultId, subjectId])
+}
+
+model ImportBatch {
+  id             String       @id @default(cuid())
+  timestamp      DateTime     @default(now())
+  totalRecords   Int
+  errors         Json?
+  source         String
+  collegeId      String
+  academicYearId String
+  college        College      @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  students       Student[]
+}
+
+model AppSettings {
+  id                       String  @id @default("default")
+  passWeight               Float   @default(35)
+  averageWeight            Float   @default(25)
+  topPerformerWeight       Float   @default(15)
+  consistencyWeight        Float   @default(10)
+  lowFailureWeight         Float   @default(10)
+  improvementWeight        Float   @default(5)
+  subjectNormalizationJson Json?
+}
