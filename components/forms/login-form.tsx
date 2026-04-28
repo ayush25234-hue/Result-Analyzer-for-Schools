@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
@@ -10,7 +11,8 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextValue = searchParams.get("next");
-  const next = nextValue && nextValue.startsWith("/") ? nextValue : "/dashboard";
+  const allowedNextRoutes: Route[] = ["/dashboard", "/upload", "/settings", "/students", "/reports"];
+  const next = allowedNextRoutes.find((route) => route === nextValue) ?? "/dashboard";
   const { refreshSession } = useAuthSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
