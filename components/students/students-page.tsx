@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { SectionCard } from "@/components/dashboard/section-card";
+import { useAuthSession } from "@/components/layout/auth-session-provider";
 import { useActiveSession } from "@/components/layout/active-session-provider";
 import { readJsonOrThrow } from "@/lib/client-fetch";
 import { StudentForm } from "@/components/students/student-form";
@@ -10,6 +11,7 @@ import { StudentsTable } from "@/components/students/students-table";
 import type { StudentRecord } from "@/types";
 
 export function StudentsPage() {
+  const { isAdmin } = useAuthSession();
   const { activeCollegeId, activeYearId, loading } = useActiveSession();
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [search, setSearch] = useState("");
@@ -64,18 +66,26 @@ export function StudentsPage() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <SectionCard title={editing ? "Edit Student" : "Manual Entry"} subtitle="Add or update student results with dynamic subjects">
-        <StudentForm
-          collegeId={activeCollegeId}
-          academicYearId={activeYearId}
-          initialValue={editing}
-          onSaved={async () => {
-            setEditing(null);
-            await loadStudents();
-          }}
-          onCancel={() => setEditing(null)}
-        />
-      </SectionCard>
+      {isAdmin ? (
+        <SectionCard title={editing ? "Edit Student" : "Manual Entry"} subtitle="Add or update student results with dynamic subjects">
+          <StudentForm
+            collegeId={activeCollegeId}
+            academicYearId={activeYearId}
+            initialValue={editing}
+            onSaved={async () => {
+              setEditing(null);
+              await loadStudents();
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        </SectionCard>
+      ) : (
+        <SectionCard title="Read-Only Access" subtitle="Public users can review student results but cannot edit them">
+          <div className="rounded-2xl bg-mist p-6 text-sm text-slate-600">
+            Sign in as admin to add, edit, delete, or import student records.
+          </div>
+        </SectionCard>
+      )}
 
       <SectionCard title="Student Directory" subtitle="Search, filter, edit, and delete result entries">
         {error ? (
@@ -109,6 +119,7 @@ export function StudentsPage() {
             await fetch(`/api/students/${student.id}`, { method: "DELETE" });
             await loadStudents();
           }}
+          canManage={isAdmin}
         />
       </SectionCard>
     </div>

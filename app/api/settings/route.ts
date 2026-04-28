@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireAdminResponse } from "@/lib/auth-guard";
 import { ensureDefaultSettings } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { settingsSchema } from "@/lib/schemas";
@@ -18,6 +19,9 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
     const payload = settingsSchema.parse(body);

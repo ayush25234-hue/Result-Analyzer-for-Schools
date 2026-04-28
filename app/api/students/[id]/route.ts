@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ResultStatus } from "@prisma/client";
 
+import { requireAdminResponse } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { studentSchema } from "@/lib/schemas";
 import { gradeFromPercentage } from "@/lib/utils";
@@ -28,6 +29,9 @@ async function upsertSubjects(subjects: { name: string; marks: number }[]) {
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   const body = await request.json();
   const payload = studentSchema.parse(body);
   const subjectRows = await upsertSubjects(payload.subjects);
@@ -96,6 +100,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 }
 
 export async function DELETE(_: Request, { params }: RouteContext) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   await prisma.student.delete({
     where: { id: params.id }
   });

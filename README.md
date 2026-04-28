@@ -59,6 +59,14 @@ npm install
 cp .env.example .env
 ```
 
+Set these admin variables too:
+
+```env
+ADMIN_USERNAME="admin"
+ADMIN_PASSWORD="your-strong-password"
+SESSION_SECRET="a-long-random-secret-value"
+```
+
 3. Generate Prisma client and apply the schema.
 
 ```bash
@@ -143,7 +151,6 @@ It should return JSON with `ok: true`.
 
 ## Recommended Next Security Improvements
 
-- Add admin authentication before public launch
 - Add role-based access for staff
 - Add audit logs for imports and deletes
 - Add rate limiting for write APIs

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ResultStatus } from "@prisma/client";
 
+import { requireAdminResponse } from "@/lib/auth-guard";
 import { gradeFromPercentage } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { studentSchema } from "@/lib/schemas";
@@ -71,6 +72,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   const body = await request.json();
   const payload = studentSchema.parse(body);
   const subjectRows = await upsertSubjects(payload.subjects);

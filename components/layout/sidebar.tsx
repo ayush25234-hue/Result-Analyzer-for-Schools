@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Building2, FileText, Settings, UploadCloud, Users } from "lucide-react";
 
+import { useAuthSession } from "@/components/layout/auth-session-provider";
 import { navigation } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,8 @@ const iconMap = {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { isAdmin } = useAuthSession();
+  const visibleNavigation = navigation.filter((item) => isAdmin || !["/upload", "/settings"].includes(item.href));
 
   return (
     <aside className="flex w-full flex-col justify-between rounded-[2rem] border border-white/60 bg-white/80 p-5 shadow-soft backdrop-blur xl:w-72">
@@ -32,7 +35,7 @@ export function Sidebar() {
         </div>
 
         <nav className="space-y-2">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const Icon = iconMap[item.label as keyof typeof iconMap];
             const active = pathname.startsWith(item.href);
 
@@ -56,7 +59,9 @@ export function Sidebar() {
       </div>
 
       <div className="rounded-[1.5rem] border border-slate-200 bg-mist p-4 text-sm text-slate-600">
-        Bulk import, smart paste, comparison scoring, and exports are all available without touching captcha-protected portals.
+        {isAdmin
+          ? "Admin mode is active. You can manage imports, settings, and student records."
+          : "Read-only mode is active. Public visitors can view analytics and reports but cannot change data."}
       </div>
     </aside>
   );

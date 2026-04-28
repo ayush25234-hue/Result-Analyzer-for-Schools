@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { ResultStatus } from "@prisma/client";
 
+import { requireAdminResponse } from "@/lib/auth-guard";
 import { parseRows, parseSmartPaste } from "@/lib/import";
 import { prisma } from "@/lib/prisma";
 import { importCommitSchema } from "@/lib/schemas";
 
 export async function POST(request: Request) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
     const settings = await prisma.appSettings.findUnique({ where: { id: "default" } });
@@ -160,6 +164,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   try {
     const url = new URL(request.url);
     const collegeId = url.searchParams.get("collegeId");
@@ -181,6 +188,9 @@ export async function GET(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   try {
     const url = new URL(request.url);
     const batchId = url.searchParams.get("batchId");

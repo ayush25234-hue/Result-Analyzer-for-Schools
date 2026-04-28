@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireAdminResponse } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { collegeSchema } from "@/lib/schemas";
 
@@ -8,6 +9,9 @@ type RouteContext = {
 };
 
 export async function PUT(request: Request, { params }: RouteContext) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   const body = await request.json();
   const payload = collegeSchema.parse(body);
 
@@ -20,6 +24,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 }
 
 export async function DELETE(_: Request, { params }: RouteContext) {
+  const unauthorized = requireAdminResponse();
+  if (unauthorized) return unauthorized;
+
   await prisma.college.delete({
     where: { id: params.id }
   });

@@ -16,11 +16,13 @@ const columnHelper = createColumnHelper<StudentRecord>();
 export function StudentsTable({
   data,
   onEdit,
-  onDelete
+  onDelete,
+  canManage
 }: {
   data: StudentRecord[];
   onEdit: (student: StudentRecord) => void;
   onDelete: (student: StudentRecord) => void;
+  canManage: boolean;
 }) {
   const columns = [
     columnHelper.accessor("name", { header: "Student" }),
@@ -39,20 +41,24 @@ export function StudentsTable({
       header: "Percentage",
       cell: ({ row }) => formatPercentage(row.original.result?.percentage ?? 0)
     }),
-    columnHelper.display({
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <div className="flex gap-2">
-          <button onClick={() => onEdit(row.original)} className="rounded-xl bg-mist px-3 py-2 text-xs font-semibold">
-            Edit
-          </button>
-          <button onClick={() => onDelete(row.original)} className="rounded-xl bg-berry/10 px-3 py-2 text-xs font-semibold text-berry">
-            Delete
-          </button>
-        </div>
-      )
-    })
+    ...(canManage
+      ? [
+          columnHelper.display({
+            id: "actions",
+            header: "Actions",
+            cell: ({ row }) => (
+              <div className="flex gap-2">
+                <button onClick={() => onEdit(row.original)} className="rounded-xl bg-mist px-3 py-2 text-xs font-semibold">
+                  Edit
+                </button>
+                <button onClick={() => onDelete(row.original)} className="rounded-xl bg-berry/10 px-3 py-2 text-xs font-semibold text-berry">
+                  Delete
+                </button>
+              </div>
+            )
+          })
+        ]
+      : [])
   ];
 
   const table = useReactTable({
