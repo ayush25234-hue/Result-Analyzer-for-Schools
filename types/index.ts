@@ -63,6 +63,28 @@ export type DashboardPayload = {
     above75: number;
     above60: number;
   };
+  studentPerformanceList: Array<{
+    id: string;
+    name: string;
+    rollNumber: string;
+    percentage: number;
+    grade: string;
+    status: "PASS" | "FAIL";
+    rank: number;
+    stream?: string | null;
+  }>;
+  subjectThresholdPerformanceList: Array<{
+    id: string;
+    studentId: string;
+    name: string;
+    rollNumber: string;
+    stream?: string | null;
+    rank: number;
+    subject: string;
+    marks: number;
+    overallPercentage: number;
+    grade: string;
+  }>;
   top10Students: Array<{
     id: string;
     name: string;

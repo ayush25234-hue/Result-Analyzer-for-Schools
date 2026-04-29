@@ -16,6 +16,7 @@ export function StudentsPage() {
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "rollNumber">("name");
   const [editing, setEditing] = useState<StudentRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +29,7 @@ export function StudentsPage() {
 
     if (search) query.set("search", search);
     if (statusFilter) query.set("status", statusFilter);
+    query.set("sortBy", sortBy);
 
     try {
       setError(null);
@@ -42,7 +44,7 @@ export function StudentsPage() {
 
   useEffect(() => {
     void loadStudents();
-  }, [activeCollegeId, activeYearId, statusFilter]);
+  }, [activeCollegeId, activeYearId, statusFilter, sortBy]);
 
   if (loading) {
     return <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">Loading students...</div>;
@@ -98,6 +100,14 @@ export function StudentsPage() {
             placeholder="Search by student name or roll number"
             className="flex-1 rounded-2xl border border-slate-200 px-4 py-3"
           />
+          <select
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value as "name" | "rollNumber")}
+            className="rounded-2xl border border-slate-200 px-4 py-3"
+          >
+            <option value="name">Sort by name</option>
+            <option value="rollNumber">Sort by roll number</option>
+          </select>
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}

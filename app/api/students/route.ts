@@ -31,6 +31,12 @@ export async function GET(request: Request) {
   const academicYearId = url.searchParams.get("academicYearId");
   const search = url.searchParams.get("search");
   const status = url.searchParams.get("status");
+  const sortBy = url.searchParams.get("sortBy");
+
+  const orderBy =
+    sortBy === "rollNumber"
+      ? [{ rollNumber: "asc" as const }]
+      : [{ name: "asc" as const }];
 
   const students = await prisma.student.findMany({
     where: {
@@ -65,7 +71,7 @@ export async function GET(request: Request) {
       academicYear: true,
       college: true
     },
-    orderBy: { name: "asc" }
+    orderBy
   });
 
   return NextResponse.json(students);

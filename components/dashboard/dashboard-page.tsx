@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Award, LineChart, Trophy, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { DashboardCharts } from "@/components/charts/dashboard-charts";
 import { SectionCard } from "@/components/dashboard/section-card";
@@ -16,6 +16,9 @@ export function DashboardPage() {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [threshold, setThreshold] = useState<93 | 80 | 75 | 60>(93);
+  const [subjectThreshold, setSubjectThreshold] = useState<80 | 90 | 95>(80);
+  const [selectedSubject, setSelectedSubject] = useState("");
 
   useEffect(() => {
     if (!activeCollegeId || !activeYearId) return;
@@ -64,6 +67,30 @@ export function DashboardPage() {
       </div>
     );
   }
+
+  const thresholdMatches = useMemo(
+    () => data.studentPerformanceList.filter((student) => student.percentage > threshold),
+    [data.studentPerformanceList, threshold]
+  );
+
+  const subjectOptions = useMemo(
+    () => [...new Set(data.subjectThresholdPerformanceList.map((item) => item.subject))].sort(),
+    [data.subjectThresholdPerformanceList]
+  );
+
+  useEffect(() => {
+    if (!selectedSubject && subjectOptions.length > 0) {
+      setSelectedSubject(subjectOptions[0]);
+    }
+  }, [selectedSubject, subjectOptions]);
+
+  const subjectThresholdMatches = useMemo(
+    () =>
+      data.subjectThresholdPerformanceList.filter(
+        (student) => student.subject === selectedSubject && student.marks > subjectThreshold
+      ),
+    [data.subjectThresholdPerformanceList, selectedSubject, subjectThreshold]
+  );
 
   return (
     <div className="space-y-6">
@@ -185,6 +212,116 @@ export function DashboardPage() {
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard title="Percentage Filter List" subtitle="See both the count and student list above a selected percentage">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <select
+            value={threshold}
+            onChange={(event) => setThreshold(Number(event.target.value) as 93 | 80 | 75 | 60)}
+            className="rounded-2xl border border-slate-200 px-4 py-3"
+          >
+            <option value={93}>Above 93%</option>
+            <option value={80}>Above 80%</option>
+            <option value={75}>Above 75%</option>
+            <option value={60}>Above 60%</option>
+          </select>
+          <div className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate-700">
+            Matching students: <span className="font-semibold text-ink">{thresholdMatches.length}</span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="pb-3">Rank</th>
+                <th className="pb-3">Student</th>
+                <th className="pb-3">Roll</th>
+                <th className="pb-3">Stream</th>
+                <th className="pb-3">Grade</th>
+                <th className="pb-3">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {thresholdMatches.map((student) => (
+                <tr key={student.id} className="border-t border-slate-100">
+                  <td className="py-3">{student.rank}</td>
+                  <td className="py-3 font-medium text-ink">{student.name}</td>
+                  <td className="py-3">{student.rollNumber}</td>
+                  <td className="py-3">{student.stream ?? "General"}</td>
+                  <td className="py-3">{student.grade}</td>
+                  <td className="py-3">{formatPercentage(student.percentage)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {thresholdMatches.length === 0 ? (
+            <p className="pt-4 text-sm text-slate-500">No students found above the selected percentage.</p>
+          ) : null}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Subject-Wise Threshold List" subtitle="Pick a subject and see students scoring above 80, 90, or 95 in that subject">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 md:flex-row">
+            <select
+              value={selectedSubject}
+              onChange={(event) => setSelectedSubject(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-3"
+            >
+              {subjectOptions.map((subject) => (
+                <option key={subject} value={subject}>
+                  {subject}
+                </option>
+              ))}
+            </select>
+            <select
+              value={subjectThreshold}
+              onChange={(event) => setSubjectThreshold(Number(event.target.value) as 80 | 90 | 95)}
+              className="rounded-2xl border border-slate-200 px-4 py-3"
+            >
+              <option value={80}>Above 80</option>
+              <option value={90}>Above 90</option>
+              <option value={95}>Above 95</option>
+            </select>
+          </div>
+          <div className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate-700">
+            Matching students: <span className="font-semibold text-ink">{subjectThresholdMatches.length}</span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="pb-3">Rank</th>
+                <th className="pb-3">Student</th>
+                <th className="pb-3">Roll</th>
+                <th className="pb-3">Stream</th>
+                <th className="pb-3">Subject</th>
+                <th className="pb-3">Marks</th>
+                <th className="pb-3">Overall %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subjectThresholdMatches.map((student) => (
+                <tr key={student.id} className="border-t border-slate-100">
+                  <td className="py-3">{student.rank}</td>
+                  <td className="py-3 font-medium text-ink">{student.name}</td>
+                  <td className="py-3">{student.rollNumber}</td>
+                  <td className="py-3">{student.stream ?? "General"}</td>
+                  <td className="py-3">{student.subject}</td>
+                  <td className="py-3">{student.marks}</td>
+                  <td className="py-3">{formatPercentage(student.overallPercentage)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {subjectThresholdMatches.length === 0 ? (
+            <p className="pt-4 text-sm text-slate-500">No students found above the selected marks threshold for this subject.</p>
+          ) : null}
+        </div>
+      </SectionCard>
     </div>
   );
 }

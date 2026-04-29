@@ -87,6 +87,32 @@ export function buildDashboard(records: DashboardRecord[]) {
     rank: record.computedRank
   }));
 
+  const studentPerformanceList = ranked.map((record) => ({
+    id: record.studentId,
+    name: record.student.name,
+    rollNumber: record.student.rollNumber,
+    percentage: record.percentage,
+    grade: record.grade,
+    status: record.status,
+    rank: record.computedRank,
+    stream: record.student.stream
+  }));
+
+  const subjectThresholdPerformanceList = ranked.flatMap((record) =>
+    record.subjectMarks.map((subjectMark) => ({
+      id: `${record.studentId}-${subjectMark.subjectId}`,
+      studentId: record.studentId,
+      name: record.student.name,
+      rollNumber: record.student.rollNumber,
+      stream: record.student.stream,
+      rank: record.computedRank,
+      subject: subjectMark.subject.name,
+      marks: subjectMark.marks,
+      overallPercentage: record.percentage,
+      grade: record.grade
+    }))
+  );
+
   const failureList = ranked
     .filter((record) => record.status === ResultStatus.FAIL)
     .map((record) => ({
@@ -123,6 +149,8 @@ export function buildDashboard(records: DashboardRecord[]) {
       topper
     },
     scoreBands,
+    studentPerformanceList,
+    subjectThresholdPerformanceList,
     top10Students,
     failureList,
     subjectWiseAverages,

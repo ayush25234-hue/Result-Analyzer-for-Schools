@@ -15,6 +15,10 @@ type ReportPayload = {
   students: StudentRecord[];
 };
 
+function buildSubjectMarkColumns(students: StudentRecord[]) {
+  return [...new Set(students.flatMap((student) => student.result?.subjectMarks.map((item) => item.subject.name) ?? []))];
+}
+
 export function ReportCenter() {
   const { activeCollegeId, activeYearId } = useActiveSession();
   const [payload, setPayload] = useState<ReportPayload | null>(null);
@@ -40,15 +44,23 @@ export function ReportCenter() {
 
   const exportExcel = () => {
     if (!payload) return;
-    const rows = payload.students.map((student) => ({
-      Name: student.name,
-      RollNumber: student.rollNumber,
-      Stream: student.stream ?? "",
-      Grade: student.result?.grade ?? "",
-      Status: student.result?.status ?? "",
-      Percentage: student.result?.percentage ?? 0,
-      Total: student.result?.total ?? 0
-    }));
+    const subjectColumns = buildSubjectMarkColumns(payload.students);
+    const rows = payload.students.map((student) => {
+      const subjectMap = Object.fromEntries(
+        (student.result?.subjectMarks ?? []).map((item) => [item.subject.name, item.marks])
+      );
+
+      return {
+        Name: student.name,
+        RollNumber: student.rollNumber,
+        Stream: student.stream ?? "",
+        ...Object.fromEntries(subjectColumns.map((subject) => [subject, subjectMap[subject] ?? ""])),
+        Grade: student.result?.grade ?? "",
+        Status: student.result?.status ?? "",
+        Percentage: student.result?.percentage ?? 0,
+        Total: student.result?.total ?? 0
+      };
+    });
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(workbook, sheet, "Results");
@@ -57,13 +69,21 @@ export function ReportCenter() {
 
   const exportCsv = () => {
     if (!payload) return;
-    const rows = payload.students.map((student) => ({
-      Name: student.name,
-      RollNumber: student.rollNumber,
-      Grade: student.result?.grade ?? "",
-      Status: student.result?.status ?? "",
-      Percentage: student.result?.percentage ?? 0
-    }));
+    const subjectColumns = buildSubjectMarkColumns(payload.students);
+    const rows = payload.students.map((student) => {
+      const subjectMap = Object.fromEntries(
+        (student.result?.subjectMarks ?? []).map((item) => [item.subject.name, item.marks])
+      );
+
+      return {
+        Name: student.name,
+        RollNumber: student.rollNumber,
+        ...Object.fromEntries(subjectColumns.map((subject) => [subject, subjectMap[subject] ?? ""])),
+        Grade: student.result?.grade ?? "",
+        Status: student.result?.status ?? "",
+        Percentage: student.result?.percentage ?? 0
+      };
+    });
     const sheet = XLSX.utils.json_to_sheet(rows);
     const csv = XLSX.utils.sheet_to_csv(sheet);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -113,6 +133,8 @@ export function ReportCenter() {
     return <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">{error ?? "Loading reports..."}</div>;
   }
 
+  const subjectColumns = buildSubjectMarkColumns(payload.students);
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
@@ -158,6 +180,51 @@ export function ReportCenter() {
           </div>
         </SectionCard>
       </div>
+
+      <SectionCard title="Detailed Subject Marks" subtitle="Subject-wise marks for every student in the selected college-year">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="pb-3 pr-4">Student</th>
+                <th className="pb-3 pr-4">Roll</th>
+                {subjectColumns.map((subject) => (
+                  <th key={subject} className="pb-3 pr-4">
+                    {subject}
+                  </th>
+                ))}
+                <th className="pb-3 pr-4">Total</th>
+                <th className="pb-3 pr-4">%</th>
+                <th className="pb-3 pr-4">Grade</th>
+                <th className="pb-3">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payload.students.map((student) => {
+                const subjectMap = Object.fromEntries(
+                  (student.result?.subjectMarks ?? []).map((item) => [item.subject.name, item.marks])
+                );
+
+                return (
+                  <tr key={student.id} className="border-t border-slate-100">
+                    <td className="py-3 pr-4 font-medium text-ink">{student.name}</td>
+                    <td className="py-3 pr-4">{student.rollNumber}</td>
+                    {subjectColumns.map((subject) => (
+                      <td key={subject} className="py-3 pr-4">
+                        {subjectMap[subject] ?? "-"}
+                      </td>
+                    ))}
+                    <td className="py-3 pr-4">{student.result?.total ?? "-"}</td>
+                    <td className="py-3 pr-4">{student.result ? formatPercentage(student.result.percentage) : "-"}</td>
+                    <td className="py-3 pr-4">{student.result?.grade ?? "-"}</td>
+                    <td className="py-3">{student.result?.status ?? "-"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
     </div>
   );
 }

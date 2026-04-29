@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Analytics } from "@vercel/analytics/next";
+import { Analytics } from "@vercel/analytics/react";
 
 import "@/app/globals.css";
 import { AppShell } from "@/components/layout/app-shell";
