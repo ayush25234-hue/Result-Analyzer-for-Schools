@@ -44,6 +44,37 @@ export function DashboardPage() {
     void load();
   }, [activeCollegeId, activeYearId]);
 
+  const thresholdMatches = useMemo(
+    () => data?.studentPerformanceList.filter((student) => student.percentage > threshold) ?? [],
+    [data, threshold]
+  );
+
+  const subjectOptions = useMemo(
+    () => [...new Set(data?.subjectThresholdPerformanceList.map((item) => item.subject) ?? [])].sort(),
+    [data]
+  );
+
+  useEffect(() => {
+    if (subjectOptions.length === 0) {
+      if (selectedSubject) {
+        setSelectedSubject("");
+      }
+      return;
+    }
+
+    if (!selectedSubject || !subjectOptions.includes(selectedSubject)) {
+      setSelectedSubject(subjectOptions[0]);
+    }
+  }, [selectedSubject, subjectOptions]);
+
+  const subjectThresholdMatches = useMemo(
+    () =>
+      (data?.subjectThresholdPerformanceList ?? []).filter(
+        (student) => student.subject === selectedSubject && student.marks > subjectThreshold
+      ),
+    [data, selectedSubject, subjectThreshold]
+  );
+
   if (loading || pending || !data) {
     if (!activeCollegeId) {
       return (
@@ -67,30 +98,6 @@ export function DashboardPage() {
       </div>
     );
   }
-
-  const thresholdMatches = useMemo(
-    () => data.studentPerformanceList.filter((student) => student.percentage > threshold),
-    [data.studentPerformanceList, threshold]
-  );
-
-  const subjectOptions = useMemo(
-    () => [...new Set(data.subjectThresholdPerformanceList.map((item) => item.subject))].sort(),
-    [data.subjectThresholdPerformanceList]
-  );
-
-  useEffect(() => {
-    if (!selectedSubject && subjectOptions.length > 0) {
-      setSelectedSubject(subjectOptions[0]);
-    }
-  }, [selectedSubject, subjectOptions]);
-
-  const subjectThresholdMatches = useMemo(
-    () =>
-      data.subjectThresholdPerformanceList.filter(
-        (student) => student.subject === selectedSubject && student.marks > subjectThreshold
-      ),
-    [data.subjectThresholdPerformanceList, selectedSubject, subjectThreshold]
-  );
 
   return (
     <div className="space-y-6">
