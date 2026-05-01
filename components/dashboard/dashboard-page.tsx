@@ -45,7 +45,7 @@ export function DashboardPage() {
   }, [activeCollegeId, activeYearId]);
 
   const thresholdMatches = useMemo(
-    () => data?.studentPerformanceList.filter((student) => student.percentage > threshold) ?? [],
+    () => data?.studentPerformanceList.filter((student) => student.percentage >= threshold) ?? [],
     [data, threshold]
   );
 
@@ -70,7 +70,7 @@ export function DashboardPage() {
   const subjectThresholdMatches = useMemo(
     () =>
       (data?.subjectThresholdPerformanceList ?? []).filter(
-        (student) => student.subject === selectedSubject && student.marks > subjectThreshold
+        (student) => student.subject === selectedSubject && student.marks >= subjectThreshold
       ),
     [data, selectedSubject, subjectThreshold]
   );
@@ -164,19 +164,19 @@ export function DashboardPage() {
               <p className="text-sm text-slate-500">Score Bands</p>
               <div className="mt-3 grid gap-2 text-sm text-slate-700">
                 <div className="flex items-center justify-between">
-                  <span>Above 93%</span>
+                  <span>93% or above</span>
                   <span className="font-semibold text-ink">{data.scoreBands.above93}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Above 80%</span>
+                  <span>80% or above</span>
                   <span className="font-semibold text-ink">{data.scoreBands.above80}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Above 75%</span>
+                  <span>75% or above</span>
                   <span className="font-semibold text-ink">{data.scoreBands.above75}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Above 60%</span>
+                  <span>60% or above</span>
                   <span className="font-semibold text-ink">{data.scoreBands.above60}</span>
                 </div>
               </div>
@@ -227,10 +227,10 @@ export function DashboardPage() {
             onChange={(event) => setThreshold(Number(event.target.value) as 93 | 80 | 75 | 60)}
             className="rounded-2xl border border-slate-200 px-4 py-3"
           >
-            <option value={93}>Above 93%</option>
-            <option value={80}>Above 80%</option>
-            <option value={75}>Above 75%</option>
-            <option value={60}>Above 60%</option>
+            <option value={93}>93% or above</option>
+            <option value={80}>80% or above</option>
+            <option value={75}>75% or above</option>
+            <option value={60}>60% or above</option>
           </select>
           <div className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate-700">
             Matching students: <span className="font-semibold text-ink">{thresholdMatches.length}</span>
@@ -263,12 +263,12 @@ export function DashboardPage() {
             </tbody>
           </table>
           {thresholdMatches.length === 0 ? (
-            <p className="pt-4 text-sm text-slate-500">No students found above the selected percentage.</p>
+            <p className="pt-4 text-sm text-slate-500">No students found at or above the selected percentage.</p>
           ) : null}
         </div>
       </SectionCard>
 
-      <SectionCard title="Subject-Wise Threshold List" subtitle="Pick a subject and see students scoring above 80, 90, or 95 in that subject">
+      <SectionCard title="Subject-Wise Threshold List" subtitle="Pick a subject and see students scoring 80, 90, or 95 and above in that subject">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-3 md:flex-row">
             <select
@@ -287,9 +287,9 @@ export function DashboardPage() {
               onChange={(event) => setSubjectThreshold(Number(event.target.value) as 80 | 90 | 95)}
               className="rounded-2xl border border-slate-200 px-4 py-3"
             >
-              <option value={80}>Above 80</option>
-              <option value={90}>Above 90</option>
-              <option value={95}>Above 95</option>
+              <option value={80}>80 or above</option>
+              <option value={90}>90 or above</option>
+              <option value={95}>95 or above</option>
             </select>
           </div>
           <div className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate-700">
@@ -325,7 +325,7 @@ export function DashboardPage() {
             </tbody>
           </table>
           {subjectThresholdMatches.length === 0 ? (
-            <p className="pt-4 text-sm text-slate-500">No students found above the selected marks threshold for this subject.</p>
+            <p className="pt-4 text-sm text-slate-500">No students found at or above the selected marks threshold for this subject.</p>
           ) : null}
         </div>
       </SectionCard>

@@ -132,10 +132,10 @@ export function buildDashboard(records: DashboardRecord[]) {
   });
 
   const scoreBands = {
-    above93: ranked.filter((record) => record.percentage > 93).length,
-    above80: ranked.filter((record) => record.percentage > 80).length,
-    above75: ranked.filter((record) => record.percentage > 75).length,
-    above60: ranked.filter((record) => record.percentage > 60).length
+    above93: ranked.filter((record) => record.percentage >= 93).length,
+    above80: ranked.filter((record) => record.percentage >= 80).length,
+    above75: ranked.filter((record) => record.percentage >= 75).length,
+    above60: ranked.filter((record) => record.percentage >= 60).length
   };
 
   return {
