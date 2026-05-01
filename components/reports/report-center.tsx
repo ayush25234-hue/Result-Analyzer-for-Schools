@@ -1,7 +1,7 @@
 "use client";
 
 import { jsPDF } from "jspdf";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 import { SectionCard } from "@/components/dashboard/section-card";
@@ -23,6 +23,12 @@ export function ReportCenter() {
   const { activeCollegeId, activeYearId } = useActiveSession();
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "rollNumber" | "rank">("name");
+  const [statusFilter, setStatusFilter] = useState<"all" | "PASS" | "FAIL">("all");
+  const [threshold, setThreshold] = useState<93 | 80 | 75 | 60>(93);
+  const [subjectThreshold, setSubjectThreshold] = useState<80 | 90 | 95>(80);
+  const [selectedSubject, setSelectedSubject] = useState("");
 
   useEffect(() => {
     if (!activeCollegeId || !activeYearId) return;
@@ -35,16 +41,87 @@ export function ReportCenter() {
         setPayload(await readJsonOrThrow<ReportPayload>(response));
       } catch (fetchError) {
         setPayload(null);
-        setError(fetchError instanceof Error ? fetchError.message : "Unable to load reports.");
+        setError(fetchError instanceof Error ? fetchError.message : "Unable to load student insights.");
       }
     };
 
     void load();
   }, [activeCollegeId, activeYearId]);
 
+  const students = payload?.students ?? [];
+  const studentPerformanceList = payload?.dashboard.studentPerformanceList ?? [];
+  const subjectThresholdPerformanceList = payload?.dashboard.subjectThresholdPerformanceList ?? [];
+
+  const subjectColumns = useMemo(() => buildSubjectMarkColumns(students), [students]);
+  const filteredStudents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const matchingStudents = students.filter((student) => {
+      const statusMatches =
+        statusFilter === "all" ? true : (student.result?.status ?? "").toUpperCase() === statusFilter;
+
+      if (!statusMatches) {
+        return false;
+      }
+
+      if (!query) return true;
+
+      return student.name.toLowerCase().includes(query) || student.rollNumber.toLowerCase().includes(query);
+    });
+
+    return [...matchingStudents].sort((first, second) => {
+      if (sortBy === "rollNumber") {
+        return first.rollNumber.localeCompare(second.rollNumber, undefined, { numeric: true });
+      }
+
+      if (sortBy === "rank") {
+        const firstRank = first.result?.rank ?? Number.MAX_SAFE_INTEGER;
+        const secondRank = second.result?.rank ?? Number.MAX_SAFE_INTEGER;
+        if (firstRank !== secondRank) {
+          return firstRank - secondRank;
+        }
+        return first.name.localeCompare(second.name);
+      }
+
+      return first.name.localeCompare(second.name);
+    });
+  }, [search, sortBy, statusFilter, students]);
+
+  const thresholdMatches = useMemo(
+    () => studentPerformanceList.filter((student) => student.percentage >= threshold),
+    [studentPerformanceList, threshold]
+  );
+
+  const subjectOptions = useMemo(
+    () => [...new Set(subjectThresholdPerformanceList.map((item) => item.subject))].sort(),
+    [subjectThresholdPerformanceList]
+  );
+
+  const subjectThresholdMatches = useMemo(
+    () =>
+      subjectThresholdPerformanceList.filter(
+        (student) => student.subject === selectedSubject && student.marks >= subjectThreshold
+      ),
+    [selectedSubject, subjectThreshold, subjectThresholdPerformanceList]
+  );
+
+  const pageTitle = "Student Insights";
+  const pageDescription = "Search, sort, and filter students by percentage and subject-wise thresholds.";
+
+  useEffect(() => {
+    if (subjectOptions.length === 0) {
+      if (selectedSubject) {
+        setSelectedSubject("");
+      }
+      return;
+    }
+
+    if (!selectedSubject || !subjectOptions.includes(selectedSubject)) {
+      setSelectedSubject(subjectOptions[0]);
+    }
+  }, [selectedSubject, subjectOptions]);
+
   const exportExcel = () => {
     if (!payload) return;
-    const subjectColumns = buildSubjectMarkColumns(payload.students);
     const rows = payload.students.map((student) => {
       const subjectMap = Object.fromEntries(
         (student.result?.subjectMarks ?? []).map((item) => [item.subject.name, item.marks])
@@ -69,7 +146,6 @@ export function ReportCenter() {
 
   const exportCsv = () => {
     if (!payload) return;
-    const subjectColumns = buildSubjectMarkColumns(payload.students);
     const rows = payload.students.map((student) => {
       const subjectMap = Object.fromEntries(
         (student.result?.subjectMarks ?? []).map((item) => [item.subject.name, item.marks])
@@ -116,7 +192,7 @@ export function ReportCenter() {
   if (!activeCollegeId) {
     return (
       <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">
-        Create a college first from the Settings page before opening reports.
+        Create a college first from the Settings page before opening {pageTitle.toLowerCase()}.
       </div>
     );
   }
@@ -124,19 +200,38 @@ export function ReportCenter() {
   if (!activeYearId) {
     return (
       <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">
-        Add an academic year for the selected college from the Settings page before opening reports.
+        Add an academic year for the selected college from the Settings page before opening {pageTitle.toLowerCase()}.
       </div>
     );
   }
 
   if (!payload) {
-    return <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">{error ?? "Loading reports..."}</div>;
+    return (
+      <div className="rounded-[2rem] bg-white/85 p-8 shadow-soft">
+        {error ?? `Loading ${pageTitle.toLowerCase()}...`}
+      </div>
+    );
   }
-
-  const subjectColumns = buildSubjectMarkColumns(payload.students);
 
   return (
     <div className="space-y-6">
+      <SectionCard title={pageTitle} subtitle={pageDescription}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-2xl bg-mist p-4">
+            <p className="text-sm text-slate-500">Percentage Filter</p>
+            <p className="mt-2 text-sm text-slate-700">Move through 60%, 75%, 80%, and 93% lists instantly.</p>
+          </div>
+          <div className="rounded-2xl bg-mist p-4">
+            <p className="text-sm text-slate-500">Subject Threshold</p>
+            <p className="mt-2 text-sm text-slate-700">Check students at 80, 90, or 95 and above for each subject.</p>
+          </div>
+          <div className="rounded-2xl bg-mist p-4">
+            <p className="text-sm text-slate-500">Search + Sort</p>
+            <p className="mt-2 text-sm text-slate-700">Find students by name or roll number and sort by rank.</p>
+          </div>
+        </div>
+      </SectionCard>
+
       <div className="grid gap-4 md:grid-cols-4">
         <button onClick={exportExcel} className="rounded-[1.75rem] bg-ink px-4 py-4 text-sm font-semibold text-white">
           Export Excel
@@ -153,12 +248,40 @@ export function ReportCenter() {
       </div>
 
       <SectionCard title="Detailed Subject Marks" subtitle="Subject-wise marks for every student in the selected college-year">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row">
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search student by Name or Roll No."
+            className="flex-1 rounded-2xl border border-slate-200 px-4 py-3"
+          />
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as "all" | "PASS" | "FAIL")}
+            className="rounded-2xl border border-slate-200 px-4 py-3"
+          >
+            <option value="all">All Students</option>
+            <option value="PASS">Pass Students</option>
+            <option value="FAIL">Fail Students</option>
+          </select>
+          <select
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value as "name" | "rollNumber" | "rank")}
+            className="rounded-2xl border border-slate-200 px-4 py-3"
+          >
+            <option value="name">Sort by Name</option>
+            <option value="rollNumber">Sort by Roll No.</option>
+            <option value="rank">Sort by Rank</option>
+          </select>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="text-slate-500">
               <tr>
                 <th className="pb-3 pr-4">Student</th>
                 <th className="pb-3 pr-4">Roll</th>
+                <th className="pb-3 pr-4">Rank</th>
                 {subjectColumns.map((subject) => (
                   <th key={subject} className="pb-3 pr-4">
                     {subject}
@@ -171,7 +294,7 @@ export function ReportCenter() {
               </tr>
             </thead>
             <tbody>
-              {payload.students.map((student) => {
+              {filteredStudents.map((student) => {
                 const subjectMap = Object.fromEntries(
                   (student.result?.subjectMarks ?? []).map((item) => [item.subject.name, item.marks])
                 );
@@ -180,6 +303,7 @@ export function ReportCenter() {
                   <tr key={student.id} className="border-t border-slate-100">
                     <td className="py-3 pr-4 font-medium text-ink">{student.name}</td>
                     <td className="py-3 pr-4">{student.rollNumber}</td>
+                    <td className="py-3 pr-4">{student.result?.rank ?? "-"}</td>
                     {subjectColumns.map((subject) => (
                       <td key={subject} className="py-3 pr-4">
                         {subjectMap[subject] ?? "-"}
@@ -194,6 +318,119 @@ export function ReportCenter() {
               })}
             </tbody>
           </table>
+          {filteredStudents.length === 0 ? (
+            <p className="pt-4 text-sm text-slate-500">No students matched your search and status filter.</p>
+          ) : null}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Percentage Filter List" subtitle="See both the count and student list at or above a selected percentage">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <select
+            value={threshold}
+            onChange={(event) => setThreshold(Number(event.target.value) as 93 | 80 | 75 | 60)}
+            className="rounded-2xl border border-slate-200 px-4 py-3"
+          >
+            <option value={93}>93% or above</option>
+            <option value={80}>80% or above</option>
+            <option value={75}>75% or above</option>
+            <option value={60}>60% or above</option>
+          </select>
+          <div className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate-700">
+            Matching students: <span className="font-semibold text-ink">{thresholdMatches.length}</span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="pb-3">Rank</th>
+                <th className="pb-3">Student</th>
+                <th className="pb-3">Roll</th>
+                <th className="pb-3">Stream</th>
+                <th className="pb-3">Grade</th>
+                <th className="pb-3">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {thresholdMatches.map((student) => (
+                <tr key={student.id} className="border-t border-slate-100">
+                  <td className="py-3">{student.rank}</td>
+                  <td className="py-3 font-medium text-ink">{student.name}</td>
+                  <td className="py-3">{student.rollNumber}</td>
+                  <td className="py-3">{student.stream ?? "General"}</td>
+                  <td className="py-3">{student.grade}</td>
+                  <td className="py-3">{formatPercentage(student.percentage)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {thresholdMatches.length === 0 ? (
+            <p className="pt-4 text-sm text-slate-500">No students found at or above the selected percentage.</p>
+          ) : null}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Subject-Wise Threshold List" subtitle="Pick a subject and see students scoring 80, 90, or 95 and above in that subject">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 md:flex-row">
+            <select
+              value={selectedSubject}
+              onChange={(event) => setSelectedSubject(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-3"
+            >
+              {subjectOptions.map((subject) => (
+                <option key={subject} value={subject}>
+                  {subject}
+                </option>
+              ))}
+            </select>
+            <select
+              value={subjectThreshold}
+              onChange={(event) => setSubjectThreshold(Number(event.target.value) as 80 | 90 | 95)}
+              className="rounded-2xl border border-slate-200 px-4 py-3"
+            >
+              <option value={80}>80 or above</option>
+              <option value={90}>90 or above</option>
+              <option value={95}>95 or above</option>
+            </select>
+          </div>
+          <div className="rounded-2xl bg-mist px-4 py-3 text-sm text-slate-700">
+            Matching students: <span className="font-semibold text-ink">{subjectThresholdMatches.length}</span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="pb-3">Rank</th>
+                <th className="pb-3">Student</th>
+                <th className="pb-3">Roll</th>
+                <th className="pb-3">Stream</th>
+                <th className="pb-3">Subject</th>
+                <th className="pb-3">Marks</th>
+                <th className="pb-3">Overall %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subjectThresholdMatches.map((student) => (
+                <tr key={student.id} className="border-t border-slate-100">
+                  <td className="py-3">{student.rank}</td>
+                  <td className="py-3 font-medium text-ink">{student.name}</td>
+                  <td className="py-3">{student.rollNumber}</td>
+                  <td className="py-3">{student.stream ?? "General"}</td>
+                  <td className="py-3">{student.subject}</td>
+                  <td className="py-3">{student.marks}</td>
+                  <td className="py-3">{formatPercentage(student.overallPercentage)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {subjectThresholdMatches.length === 0 ? (
+            <p className="pt-4 text-sm text-slate-500">No students found at or above the selected marks threshold for this subject.</p>
+          ) : null}
         </div>
       </SectionCard>
     </div>
