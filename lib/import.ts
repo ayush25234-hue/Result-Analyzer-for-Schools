@@ -104,6 +104,65 @@ function isNumericLike(value: unknown) {
   return /^-?\d+(\.\d+)?$/.test(text);
 }
 
+function extractMarksAndQualifier(value: unknown) {
+  if (typeof value === "number") {
+    return {
+      marks: value,
+      qualifier: ""
+    };
+  }
+
+  const text = String(value ?? "").trim();
+  const match = text.match(/^(-?\d+(?:\.\d+)?)\s*(?:[\(\[\- ]*([a-zA-Z]+)[\)\]]*)?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    marks: Number(match[1]),
+    qualifier: (match[2] ?? "").trim().toUpperCase()
+  };
+}
+
+function resolveCombinedSubjectName(subject: string, qualifier: string, map: NormalizationMap) {
+  const options = subject
+    .split(/[\/|]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (options.length <= 1) {
+    return normalizeSubjectName(subject, map);
+  }
+
+  if (!qualifier) {
+    return normalizeSubjectName(subject, map);
+  }
+
+  const normalizedQualifier = qualifier.toUpperCase();
+  const matchedOption = options.find((option) => {
+    const normalizedOption = normalizeSubjectName(option, map).toUpperCase();
+    return (
+      normalizedOption.startsWith(normalizedQualifier) ||
+      normalizedQualifier.startsWith(normalizedOption.slice(0, 1))
+    );
+  });
+
+  return normalizeSubjectName(matchedOption ?? subject, map);
+}
+
+function parseSubjectCell(key: string, value: unknown, normalizationMap: NormalizationMap) {
+  const parsed = extractMarksAndQualifier(value);
+  if (!parsed || !Number.isFinite(parsed.marks)) {
+    return null;
+  }
+
+  return {
+    name: resolveCombinedSubjectName(key, parsed.qualifier, normalizationMap),
+    marks: parsed.marks
+  };
+}
+
 function isRowEmpty(row: Record<string, unknown>) {
   return !Object.values(row).some((value) => hasMeaningfulValue(value));
 }
@@ -158,12 +217,10 @@ export function parseRows(
     const subjects = Object.entries(row)
       .filter(([key, value]) => {
         const normalizedKey = normalizeKey(key);
-        return !reservedColumns.has(normalizedKey) && hasMeaningfulValue(value) && isNumericLike(value);
+        return !reservedColumns.has(normalizedKey) && hasMeaningfulValue(value);
       })
-      .map(([key, value]) => ({
-        name: normalizeSubjectName(key, normalizationMap),
-        marks: safeNumber(value)
-      }))
+      .map(([key, value]) => parseSubjectCell(key, value, normalizationMap))
+      .filter((subject): subject is { name: string; marks: number } => !!subject)
       .filter((subject) => subject.name && subject.marks >= 0);
 
     if (subjects.length === 0) {
