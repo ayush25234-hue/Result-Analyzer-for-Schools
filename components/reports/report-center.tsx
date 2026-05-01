@@ -23,6 +23,7 @@ export function ReportCenter() {
   const { activeCollegeId, activeYearId } = useActiveSession();
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<"marks" | "percentage" | "subject">("marks");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "rollNumber" | "rank">("name");
   const [statusFilter, setStatusFilter] = useState<"all" | "PASS" | "FAIL">("all");
@@ -216,19 +217,60 @@ export function ReportCenter() {
   return (
     <div className="space-y-6">
       <SectionCard title={pageTitle} subtitle={pageDescription}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-2xl bg-mist p-4">
-            <p className="text-sm text-slate-500">Percentage Filter</p>
-            <p className="mt-2 text-sm text-slate-700">Move through 60%, 75%, 80%, and 93% lists instantly.</p>
-          </div>
-          <div className="rounded-2xl bg-mist p-4">
-            <p className="text-sm text-slate-500">Subject Threshold</p>
-            <p className="mt-2 text-sm text-slate-700">Check students at 80, 90, or 95 and above for each subject.</p>
-          </div>
-          <div className="rounded-2xl bg-mist p-4">
-            <p className="text-sm text-slate-500">Search + Sort</p>
-            <p className="mt-2 text-sm text-slate-700">Find students by name or roll number and sort by rank.</p>
-          </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => setActiveSection("marks")}
+            className={`rounded-2xl border p-4 text-left transition ${
+              activeSection === "marks"
+                ? "border-ink bg-ink text-white shadow-soft"
+                : "border-slate-200 bg-mist text-ink"
+            }`}
+          >
+            <p className={`text-sm ${activeSection === "marks" ? "text-white/80" : "text-slate-500"}`}>
+              Option 1
+            </p>
+            <p className="mt-2 text-lg font-semibold">Detailed Subject Marks</p>
+            <p className={`mt-2 text-sm ${activeSection === "marks" ? "text-white/80" : "text-slate-700"}`}>
+              Search by name or roll number, then sort by roll number, name, or rank.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection("percentage")}
+            className={`rounded-2xl border p-4 text-left transition ${
+              activeSection === "percentage"
+                ? "border-pine bg-pine text-white shadow-soft"
+                : "border-slate-200 bg-mist text-ink"
+            }`}
+          >
+            <p className={`text-sm ${activeSection === "percentage" ? "text-white/80" : "text-slate-500"}`}>
+              Option 2
+            </p>
+            <p className="mt-2 text-lg font-semibold">Percentage Filter List</p>
+            <p className={`mt-2 text-sm ${activeSection === "percentage" ? "text-white/80" : "text-slate-700"}`}>
+              Instantly open student lists for 60%, 75%, 80%, or 93% and above.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection("subject")}
+            className={`rounded-2xl border p-4 text-left transition ${
+              activeSection === "subject"
+                ? "border-ember bg-ember text-white shadow-soft"
+                : "border-slate-200 bg-mist text-ink"
+            }`}
+          >
+            <p className={`text-sm ${activeSection === "subject" ? "text-white/80" : "text-slate-500"}`}>
+              Option 3
+            </p>
+            <p className="mt-2 text-lg font-semibold">Subject-Wise Threshold List</p>
+            <p className={`mt-2 text-sm ${activeSection === "subject" ? "text-white/80" : "text-slate-700"}`}>
+              Pick any subject and see who scored 80, 90, or 95 and above.
+            </p>
+          </button>
         </div>
       </SectionCard>
 
@@ -247,6 +289,7 @@ export function ReportCenter() {
         </button>
       </div>
 
+      {activeSection === "marks" ? (
       <SectionCard title="Detailed Subject Marks" subtitle="Subject-wise marks for every student in the selected college-year">
         <div className="mb-4 flex flex-col gap-3 md:flex-row">
           <input
@@ -323,7 +366,9 @@ export function ReportCenter() {
           ) : null}
         </div>
       </SectionCard>
+      ) : null}
 
+      {activeSection === "percentage" ? (
       <SectionCard title="Percentage Filter List" subtitle="See both the count and student list at or above a selected percentage">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <select
@@ -371,7 +416,9 @@ export function ReportCenter() {
           ) : null}
         </div>
       </SectionCard>
+      ) : null}
 
+      {activeSection === "subject" ? (
       <SectionCard title="Subject-Wise Threshold List" subtitle="Pick a subject and see students scoring 80, 90, or 95 and above in that subject">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-3 md:flex-row">
@@ -433,6 +480,7 @@ export function ReportCenter() {
           ) : null}
         </div>
       </SectionCard>
+      ) : null}
     </div>
   );
 }
