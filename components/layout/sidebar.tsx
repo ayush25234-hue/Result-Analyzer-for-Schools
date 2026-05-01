@@ -12,7 +12,7 @@ const iconMap = {
   Dashboard: BarChart3,
   Upload: UploadCloud,
   Students: Users,
-  "Filter Students": FileText,
+  "Student Insights": FileText,
   Settings: Settings
 };
 
