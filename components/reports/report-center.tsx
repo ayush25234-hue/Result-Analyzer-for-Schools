@@ -152,35 +152,6 @@ export function ReportCenter() {
         </button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <SectionCard title="College-Year Summary" subtitle="Snapshot of the selected context">
-          <div className="space-y-3 text-sm text-slate-700">
-            <p>Total students: {payload.dashboard.summary.totalStudents}</p>
-            <p>Pass rate: {formatPercentage(payload.dashboard.summary.passPercentage)}</p>
-            <p>Average percentage: {formatPercentage(payload.dashboard.summary.averagePercentage)}</p>
-            <p>Topper: {payload.dashboard.summary.topper?.name ?? "N/A"}</p>
-            <p>Previous year average: {formatPercentage(payload.dashboard.previousYearAverage)}</p>
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Student Report Cards" subtitle="Use the exported summary or fetch individual cards from the API">
-          <div className="space-y-3">
-            {payload.students.slice(0, 8).map((student) => (
-              <div key={student.id} className="rounded-2xl border border-slate-200 p-4">
-                <p className="font-semibold text-ink">{student.name}</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {student.rollNumber} | {student.result?.grade ?? "N/A"} | {student.result?.status ?? "N/A"}
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Subjects:{" "}
-                  {student.result?.subjectMarks.map((item) => `${item.subject.name} ${item.marks}`).join(", ") ?? "N/A"}
-                </p>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      </div>
-
       <SectionCard title="Detailed Subject Marks" subtitle="Subject-wise marks for every student in the selected college-year">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">

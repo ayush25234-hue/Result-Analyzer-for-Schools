@@ -161,28 +161,6 @@ export function DashboardPage() {
         <SectionCard title="Comparison Highlights" subtitle="Cross-college performance for the selected year">
           <div className="space-y-4">
             <div className="rounded-2xl bg-mist p-4">
-              <p className="text-sm text-slate-500">Score Bands</p>
-              <div className="mt-3 grid gap-2 text-sm text-slate-700">
-                <div className="flex items-center justify-between">
-                  <span>93% or above</span>
-                  <span className="font-semibold text-ink">{data.scoreBands.above93}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>80% or above</span>
-                  <span className="font-semibold text-ink">{data.scoreBands.above80}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>75% or above</span>
-                  <span className="font-semibold text-ink">{data.scoreBands.above75}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>60% or above</span>
-                  <span className="font-semibold text-ink">{data.scoreBands.above60}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-mist p-4">
               <p className="text-sm text-slate-500">Best College</p>
               <p className="mt-1 text-xl font-semibold text-ink">
                 {data.comparison.bestCollege?.college ?? "N/A"}
