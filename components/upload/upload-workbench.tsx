@@ -4,138 +4,131 @@ import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 
 import { SectionCard } from "@/components/dashboard/section-card";
+import { useAuthSession } from "@/components/layout/auth-session-provider";
 import { useActiveSession } from "@/components/layout/active-session-provider";
-import { StudentsPage } from "@/components/students/students-page";
+import { StudentForm } from "@/components/students/student-form";
+import { StudentsTable } from "@/components/students/students-table";
 import { readJsonOrThrow } from "@/lib/client-fetch";
-import type { ImportPreview } from "@/types";
+import type { ImportPreview, StudentRecord } from "@/types";
 
 export function UploadWorkbench() {
+  const { isAdmin } = useAuthSession();
   const { activeCollegeId, activeYearId } = useActiveSession();
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [smartPasteText, setSmartPasteText] = useState("");
-  const [mode, setMode] = useState<"excel" | "smart-paste">("excel");
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [batches, setBatches] = useState<Array<{ id: string; timestamp: string; totalRecords: number; source: string }>>([]);
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "rollNumber">("name");
+  const [editing, setEditing] = useState<StudentRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const canSaveImport = !!preview && preview.errors.length === 0 && preview.duplicates.length === 0;
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadBatches = async () => {
     if (!activeCollegeId || !activeYearId) {
       setBatches([]);
       return;
     }
+
     try {
       setError(null);
       const response = await fetch(`/api/import?collegeId=${activeCollegeId}&academicYearId=${activeYearId}`, {
         cache: "no-store"
       });
-      setBatches(await readJsonOrThrow<Array<{ id: string; timestamp: string; totalRecords: number; source: string }>>(response));
+      setBatches(
+        await readJsonOrThrow<Array<{ id: string; timestamp: string; totalRecords: number; source: string }>>(response)
+      );
     } catch (fetchError) {
       setBatches([]);
       setError(fetchError instanceof Error ? fetchError.message : "Unable to load import batches.");
     }
   };
 
+  const loadStudents = async () => {
+    if (!activeCollegeId || !activeYearId) return;
+
+    const query = new URLSearchParams({
+      collegeId: activeCollegeId,
+      academicYearId: activeYearId
+    });
+
+    if (search) query.set("search", search);
+    if (statusFilter) query.set("status", statusFilter);
+    query.set("sortBy", sortBy);
+
+    try {
+      setError(null);
+      const response = await fetch(`/api/students?${query.toString()}`, { cache: "no-store" });
+      setStudents(await readJsonOrThrow<StudentRecord[]>(response));
+    } catch (fetchError) {
+      setStudents([]);
+      setError(fetchError instanceof Error ? fetchError.message : "Unable to load students.");
+    }
+  };
+
   useEffect(() => {
     void loadBatches();
-  }, [activeCollegeId, activeYearId]);
+    void loadStudents();
+  }, [activeCollegeId, activeYearId, statusFilter, sortBy]);
 
   const handleFile = async (file: File) => {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const parsed = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-    setRows(parsed);
-    const response = await fetch("/api/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        commit: false,
-        source: "excel",
-        collegeId: activeCollegeId,
-        academicYearId: activeYearId,
-        rows: parsed
-      })
-    });
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+
     try {
       setError(null);
-      setPreview(await readJsonOrThrow<ImportPreview>(response));
-    } catch (fetchError) {
-      setPreview(null);
-      setError(fetchError instanceof Error ? fetchError.message : "Unable to preview the import file.");
-    }
-  };
+      setSuccessMessage(null);
 
-  const previewSmartPaste = async () => {
-    const response = await fetch("/api/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ smartPasteText })
-    });
-    try {
-      setError(null);
-      setPreview(await readJsonOrThrow<ImportPreview>(response));
-      setMode("smart-paste");
-    } catch (fetchError) {
-      setPreview(null);
-      setError(fetchError instanceof Error ? fetchError.message : "Unable to parse pasted result text.");
-    }
-  };
+      const previewResponse = await fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commit: false,
+          source: "excel",
+          collegeId: activeCollegeId,
+          academicYearId: activeYearId,
+          rows
+        })
+      });
 
-  const commitImport = async () => {
-    if (!preview) return;
+      const preview = await readJsonOrThrow<ImportPreview>(previewResponse);
 
-    const payload =
-      mode === "excel"
-        ? {
-            commit: true,
-            source: "excel",
-            collegeId: activeCollegeId,
-            academicYearId: activeYearId,
-            rows
-          }
-        : {
-            commit: true,
-            source: "smart-paste",
-            collegeId: activeCollegeId,
-            academicYearId: activeYearId,
-            rows: preview.parsedRows.map((row) => {
-              const subjectMap = Object.fromEntries(row.subjects.map((subject) => [subject.name, subject.marks]));
-              return {
-                name: row.name,
-                "roll number": row.rollNumber,
-                total: row.total,
-                percentage: row.percentage,
-                status: row.status,
-                stream: row.stream,
-                "school code": row.schoolCode,
-                "district code": row.districtCode,
-                ...subjectMap
-              };
-            })
-          };
-
-    const response = await fetch("/api/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      try {
-        const data = await readJsonOrThrow<{ message?: string }>(response);
-        alert(data.message ?? "Import failed.");
-      } catch (fetchError) {
-        alert(fetchError instanceof Error ? fetchError.message : "Import failed.");
+      if (preview.errors.length > 0) {
+        setError(preview.errors.map((item) => `Row ${item.row}: ${item.message}`).join(" "));
+        return;
       }
-      return;
-    }
 
-    alert("Import completed successfully.");
-    setPreview(null);
-    setSmartPasteText("");
-    setRows([]);
-    await loadBatches();
+      if (preview.duplicates.length > 0) {
+        setError(`Duplicate roll numbers found: ${preview.duplicates.join(", ")}`);
+        return;
+      }
+
+      const commitResponse = await fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commit: true,
+          source: "excel",
+          collegeId: activeCollegeId,
+          academicYearId: activeYearId,
+          rows
+        })
+      });
+
+      if (!commitResponse.ok) {
+        const data = await readJsonOrThrow<{ message?: string }>(commitResponse);
+        setError(data.message ?? "Import failed.");
+        return;
+      }
+
+      setSuccessMessage(`Import completed successfully for ${preview.parsedRows.length} students.`);
+      await loadBatches();
+      await loadStudents();
+    } catch (fetchError) {
+      setSuccessMessage(null);
+      setError(fetchError instanceof Error ? fetchError.message : "Unable to import the file.");
+    }
   };
 
   if (!activeCollegeId) {
@@ -156,133 +149,57 @@ export function UploadWorkbench() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+      <div className="grid gap-6 xl:grid-cols-2">
         {error ? (
           <div className="xl:col-span-2 rounded-[1.5rem] border border-berry/20 bg-berry/5 p-4 text-sm text-berry">
             {error}
           </div>
         ) : null}
-        <SectionCard title="Data Intake" subtitle="Upload Excel or paste a copied result card for extraction">
-          <div className="space-y-4">
-            <label className="block rounded-[1.5rem] border border-dashed border-slate-300 bg-mist p-6 text-center">
-              <span className="block text-sm text-slate-600">Upload Excel or CSV</span>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void handleFile(file);
-                  setMode("excel");
-                }}
-                className="mt-4 w-full text-sm"
-              />
-            </label>
-
-            <div className="rounded-[1.5rem] border border-slate-200 p-4">
-              <p className="mb-3 text-sm font-semibold text-ink">Smart Paste Result Text</p>
-              <textarea
-                value={smartPasteText}
-                onChange={(event) => setSmartPasteText(event.target.value)}
-                rows={12}
-                placeholder={"Name: Aditi Sharma\nRoll Number: 1200456\nEnglish: 81\nPhysics: 75\nChemistry: 78\nMathematics: 88\nTotal: 322\nResult: Pass"}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3"
-              />
-              <button onClick={() => void previewSmartPaste()} className="mt-3 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white">
-                Extract Preview
-              </button>
-            </div>
+        {successMessage ? (
+          <div className="xl:col-span-2 rounded-[1.5rem] border border-pine/20 bg-pine/5 p-4 text-sm text-pine">
+            {successMessage}
           </div>
+        ) : null}
+
+        <SectionCard title="Data Intake" subtitle="Upload Excel or CSV to validate and save result data automatically">
+          <label className="block rounded-[1.5rem] border border-dashed border-slate-300 bg-mist p-6 text-center">
+            <span className="block text-sm text-slate-600">Choose an Excel or CSV file to import</span>
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void handleFile(file);
+              }}
+              className="mt-4 w-full text-sm"
+            />
+          </label>
+          <p className="mt-4 text-sm text-slate-600">
+            The file is checked automatically. If validation passes, the batch is imported immediately.
+          </p>
         </SectionCard>
 
-        <SectionCard title="Preview & Validation" subtitle="Review detected columns, duplicates, and parsed results before saving">
-          {!preview ? (
+        {isAdmin ? (
+          <SectionCard title={editing ? "Edit Student" : "Manual Entry"} subtitle="Add or update student results with dynamic subjects">
+            <StudentForm
+              collegeId={activeCollegeId}
+              academicYearId={activeYearId}
+              initialValue={editing}
+              onSaved={async () => {
+                setEditing(null);
+                setSuccessMessage("Student saved successfully.");
+                await loadStudents();
+              }}
+              onCancel={() => setEditing(null)}
+            />
+          </SectionCard>
+        ) : (
+          <SectionCard title="Read-Only Access" subtitle="Public users can review student results but cannot edit them">
             <div className="rounded-2xl bg-mist p-6 text-sm text-slate-600">
-              No import preview yet. Upload a file or use smart paste to see extracted students here.
+              Sign in as admin to add, edit, delete, or import student records.
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl bg-mist p-4">
-                  <p className="text-sm text-slate-500">Parsed Rows</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{preview.parsedRows.length}</p>
-                </div>
-                <div className="rounded-2xl bg-berry/10 p-4">
-                  <p className="text-sm text-berry">Validation Errors</p>
-                  <p className="mt-2 text-2xl font-semibold text-berry">{preview.errors.length}</p>
-                </div>
-                <div className="rounded-2xl bg-ember/10 p-4">
-                  <p className="text-sm text-ember">Duplicates</p>
-                  <p className="mt-2 text-2xl font-semibold text-ember">{preview.duplicates.length}</p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 p-4 text-sm">
-                <p className="font-semibold text-ink">Detected Columns</p>
-                <p className="mt-2 text-slate-600">{preview.detectedColumns.join(", ") || "Not available"}</p>
-                <p className="mt-2 text-xs text-slate-500">
-                  Supported student columns include variants like Name, Student Name, Roll No, Roll Number, Stream, School Code, and District Code.
-                </p>
-              </div>
-
-              {preview.errors.length > 0 ? (
-                <div className="rounded-2xl border border-berry/20 bg-berry/5 p-4 text-sm text-berry">
-                  {preview.errors.map((error) => (
-                    <p key={`${error.row}-${error.message}`}>
-                      Row {error.row}: {error.message}
-                    </p>
-                  ))}
-                </div>
-              ) : null}
-
-              {preview.duplicates.length > 0 ? (
-                <div className="rounded-2xl border border-ember/20 bg-ember/5 p-4 text-sm text-ember">
-                  <p className="font-semibold">Duplicate roll numbers found</p>
-                  <p className="mt-2 break-words">{preview.duplicates.join(", ")}</p>
-                </div>
-              ) : null}
-
-              <div className="max-h-[420px] overflow-auto rounded-2xl border border-slate-200">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">Student</th>
-                      <th className="px-4 py-3">Roll</th>
-                      <th className="px-4 py-3">Subjects</th>
-                      <th className="px-4 py-3">Total</th>
-                      <th className="px-4 py-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.parsedRows.map((row) => (
-                      <tr key={row.rollNumber} className="border-t border-slate-100 align-top">
-                        <td className="px-4 py-3 font-medium text-ink">{row.name}</td>
-                        <td className="px-4 py-3">{row.rollNumber}</td>
-                        <td className="px-4 py-3">
-                          {row.subjects.map((subject) => `${subject.name}: ${subject.marks}`).join(", ")}
-                        </td>
-                        <td className="px-4 py-3">{row.total}</td>
-                        <td className="px-4 py-3">{row.status}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {canSaveImport ? (
-                <button
-                  onClick={() => void commitImport()}
-                  className="rounded-2xl bg-pine px-4 py-3 text-sm font-semibold text-white"
-                >
-                  Save Import Batch
-                </button>
-              ) : (
-                <p className="text-sm text-berry">
-                  Resolve all validation errors and duplicate roll numbers before saving this import batch.
-                </p>
-              )}
-            </div>
-          )}
-        </SectionCard>
+          </SectionCard>
+        )}
 
         <SectionCard title="Batch Rollback" subtitle="Recent imports can be reversed safely for the active college-year">
           <div className="space-y-3">
@@ -300,8 +217,9 @@ export function UploadWorkbench() {
                   <button
                     onClick={async () => {
                       await fetch(`/api/import?batchId=${batch.id}`, { method: "DELETE" });
+                      setSuccessMessage("Import batch rolled back.");
                       await loadBatches();
-                      alert("Import batch rolled back.");
+                      await loadStudents();
                     }}
                     className="rounded-2xl bg-berry/10 px-4 py-3 text-sm font-semibold text-berry"
                   >
@@ -312,9 +230,49 @@ export function UploadWorkbench() {
             )}
           </div>
         </SectionCard>
-      </div>
 
-      <StudentsPage />
+        <SectionCard title="Student Directory" subtitle="Search, filter, edit, and delete result entries">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by student name or roll number"
+              className="flex-1 rounded-2xl border border-slate-200 px-4 py-3"
+            />
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as "name" | "rollNumber")}
+              className="rounded-2xl border border-slate-200 px-4 py-3"
+            >
+              <option value="name">Sort by name</option>
+              <option value="rollNumber">Sort by roll number</option>
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-3"
+            >
+              <option value="">All statuses</option>
+              <option value="PASS">Pass</option>
+              <option value="FAIL">Fail</option>
+            </select>
+            <button onClick={() => void loadStudents()} className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white">
+              Apply
+            </button>
+          </div>
+
+          <StudentsTable
+            data={students}
+            onEdit={setEditing}
+            onDelete={async (student) => {
+              await fetch(`/api/students/${student.id}`, { method: "DELETE" });
+              setSuccessMessage("Student deleted successfully.");
+              await loadStudents();
+            }}
+            canManage={isAdmin}
+          />
+        </SectionCard>
+      </div>
     </div>
   );
 }
