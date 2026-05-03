@@ -4,6 +4,7 @@ import { ResultStatus } from "@prisma/client";
 import { requireAdminResponse } from "@/lib/auth-guard";
 import { parseRows, parseSmartPaste } from "@/lib/import";
 import { prisma } from "@/lib/prisma";
+import { recalculateRanksForAcademicYear } from "@/lib/ranks";
 import { importCommitSchema } from "@/lib/schemas";
 
 export async function POST(request: Request) {
@@ -130,24 +131,7 @@ export async function POST(request: Request) {
         });
       }
 
-      const createdResults = await tx.result.findMany({
-        where: {
-          student: {
-            collegeId: payload.collegeId,
-            academicYearId: payload.academicYearId
-          }
-        },
-        orderBy: { percentage: "desc" }
-      });
-
-      await Promise.all(
-        createdResults.map((result, index) =>
-          tx.result.update({
-            where: { id: result.id },
-            data: { rank: index + 1 }
-          })
-        )
-      );
+      await recalculateRanksForAcademicYear(tx, payload.collegeId, payload.academicYearId);
 
       return savedBatch;
     });
@@ -200,12 +184,19 @@ export async function DELETE(request: Request) {
     }
 
     await prisma.$transaction(async (tx) => {
+      const batch = await tx.importBatch.findUniqueOrThrow({
+        where: { id: batchId },
+        select: { collegeId: true, academicYearId: true }
+      });
+
       await tx.student.deleteMany({
         where: { importBatchId: batchId }
       });
       await tx.importBatch.delete({
         where: { id: batchId }
       });
+
+      await recalculateRanksForAcademicYear(tx, batch.collegeId, batch.academicYearId);
     });
 
     return NextResponse.json({ success: true });

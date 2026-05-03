@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ResultStatus } from "@prisma/client";
 
 import { requireAdminResponse } from "@/lib/auth-guard";
+import { recalculateRanksForAcademicYear } from "@/lib/ranks";
 import { gradeFromPercentage } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { studentSchema } from "@/lib/schemas";
@@ -88,43 +89,51 @@ export async function POST(request: Request) {
   const percentage = Number(((total / (subjectRows.length * 100)) * 100).toFixed(2));
   const status = subjectRows.some((subject) => subject.marks < 33) ? ResultStatus.FAIL : ResultStatus.PASS;
 
-  const student = await prisma.student.create({
-    data: {
-      name: payload.name,
-      rollNumber: payload.rollNumber,
-      stream: payload.stream || null,
-      districtCode: payload.districtCode || null,
-      schoolCode: payload.schoolCode || null,
-      collegeId: payload.collegeId,
-      academicYearId: payload.academicYearId,
-      result: {
-        create: {
-          total: Math.round(total),
-          percentage,
-          grade: gradeFromPercentage(percentage),
-          status,
-          strongSubject: subjectRows.slice().sort((a, b) => b.marks - a.marks)[0]?.name,
-          weakSubject: subjectRows.slice().sort((a, b) => a.marks - b.marks)[0]?.name,
-          subjectMarks: {
-            create: subjectRows.map((subject) => ({
-              subjectId: subject.subjectId,
-              marks: subject.marks
-            }))
-          }
-        }
-      }
-    },
-    include: {
-      result: {
-        include: {
-          subjectMarks: {
-            include: {
-              subject: true
+  const student = await prisma.$transaction(async (tx) => {
+    const createdStudent = await tx.student.create({
+      data: {
+        name: payload.name,
+        rollNumber: payload.rollNumber,
+        stream: payload.stream || null,
+        districtCode: payload.districtCode || null,
+        schoolCode: payload.schoolCode || null,
+        collegeId: payload.collegeId,
+        academicYearId: payload.academicYearId,
+        result: {
+          create: {
+            total: Math.round(total),
+            percentage,
+            grade: gradeFromPercentage(percentage),
+            status,
+            strongSubject: subjectRows.slice().sort((a, b) => b.marks - a.marks)[0]?.name,
+            weakSubject: subjectRows.slice().sort((a, b) => a.marks - b.marks)[0]?.name,
+            subjectMarks: {
+              create: subjectRows.map((subject) => ({
+                subjectId: subject.subjectId,
+                marks: subject.marks
+              }))
             }
           }
         }
       }
-    }
+    });
+
+    await recalculateRanksForAcademicYear(tx, payload.collegeId, payload.academicYearId);
+
+    return tx.student.findUniqueOrThrow({
+      where: { id: createdStudent.id },
+      include: {
+        result: {
+          include: {
+            subjectMarks: {
+              include: {
+                subject: true
+              }
+            }
+          }
+        }
+      }
+    });
   });
 
   return NextResponse.json(student, { status: 201 });
