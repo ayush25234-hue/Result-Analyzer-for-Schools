@@ -1,5 +1,5 @@
-import { StudentsPage } from "@/components/students/students-page";
+import { redirect } from "next/navigation";
 
 export default function StudentsRoute() {
-  return <StudentsPage />;
+  redirect("/upload");
 }

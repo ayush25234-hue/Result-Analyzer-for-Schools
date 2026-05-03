@@ -3,7 +3,6 @@ import type { Route } from "next";
 export const navigation = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/upload", label: "Upload" },
-  { href: "/students", label: "Students" },
   { href: "/reports", label: "Student Insights" },
   { href: "/settings", label: "Settings" }
 ] as const satisfies ReadonlyArray<{ href: Route; label: string }>;
